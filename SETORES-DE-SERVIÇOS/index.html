@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel de Setores | Auto Sport Estética</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=1.0.1">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+</head>
+<body class="light-theme">
+
+  <!-- CONTAINER PRINCIPAL -->
+  <div class="app-container">
+    
+    <!-- SIDEBAR DE NAVEGAÇÃO DOS SETORES -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-area">
+          <span class="logo-text">Auto Sport <span class="logo-sub">Setores</span></span>
+        </div>
+      </div>
+
+      <nav class="sidebar-menu">
+        <button class="menu-item active" data-sector="Todos">
+          <span class="tab-icon">📋</span>
+          <span>Todos os Setores</span>
+          <span class="badge" id="count-Todos" style="background-color: var(--primary); box-shadow: 0 2px 6px var(--primary-glow); margin-left: auto;">0</span>
+        </button>
+        <button class="menu-item" data-sector="Limpeza">
+          <span class="tab-icon">🧼</span>
+          <span>Limpeza & Lavagem</span>
+          <span class="badge" id="count-Limpeza" style="background-color: var(--success); box-shadow: 0 2px 6px var(--success-glow); margin-left: auto;">0</span>
+        </button>
+        <button class="menu-item" data-sector="Estetica">
+          <span class="tab-icon">✨</span>
+          <span>Polimento & Estética</span>
+          <span class="badge" id="count-Estetica" style="background-color: var(--purple); box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4); margin-left: auto;">0</span>
+        </button>
+        <button class="menu-item" data-sector="Mecanica">
+          <span class="tab-icon">🔧</span>
+          <span>Parte Mecânica</span>
+          <span class="badge" id="count-Mecanica" style="background-color: var(--danger); box-shadow: 0 2px 6px var(--danger-glow); margin-left: auto;">0</span>
+        </button>
+        <button class="menu-item" data-sector="PPF">
+          <span class="tab-icon">🛡️</span>
+          <span>PPF & Películas</span>
+          <span class="badge" id="count-PPF" style="background-color: var(--warning); box-shadow: 0 2px 6px var(--warning-glow); margin-left: auto;">0</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="developer-info">
+          <p>Desenvolvido por</p>
+          <a href="https://www.instagram.com/guilherme_dev_web_ofc/" target="_blank"><h4>Guilherme B.</h4></a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ÁREA DE CONTEÚDO PRINCIPAL -->
+    <div class="main-content">
+      
+      <!-- CABEÇALHO SUPERIOR -->
+      <header class="main-header">
+        <div class="header-title">
+          <h1 id="page-title">Todos os Setores</h1>
+          <p id="page-subtitle">Monitore os agendamentos ativos divididos por setores de serviços.</p>
+        </div>
+
+        <div class="header-status">
+          <div class="clock-area-header">
+            <span id="live-clock">00:00:00</span>
+            <span id="live-date">Carregando data...</span>
+          </div>
+          <div class="jobs-stats-wrapper">
+            <span class="active-jobs-label">Total Ativos:</span>
+            <span id="total-jobs-count" class="active-jobs-badge">0</span>
+          </div>
+          <div class="layout-toggle-wrapper">
+            <button class="layout-btn active" id="btn-grid-view" title="Visualização em Grade">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            </button>
+            <button class="layout-btn" id="btn-list-view" title="Visualização em Lista (Deitado)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- CONTEÚDO DINÂMICO (GRID DE CARDS) -->
+      <div class="content-wrapper">
+        <div id="sectors-grid" class="sectors-grid">
+          <!-- Cards serão renderizados dinamicamente pelo JS -->
+          <div class="sectors-empty-state">
+            <div class="empty-icon">✓</div>
+            <h3>Tudo em dia!</h3>
+            <p>Nenhum serviço pendente nesta categoria no momento.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- MODAL DE OBSERVAÇÕES -->
+  <div id="obs-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-header-title">
+          <span style="font-size: 1.25rem; margin-right: 8px;">💬</span>
+          <h3 id="modal-obs-client-name">Observações do Serviço</h3>
+        </div>
+        <button type="button" class="modal-close-btn" id="btn-close-obs-modal">
+          <svg width="20" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="obs-modal-content-box" id="modal-obs-text" style="font-size: 0.95rem; color: var(--text-main); line-height: 1.6; background-color: rgba(0,0,0,0.02); padding: 20px; border-radius: var(--radius-md); border-left: 4px solid var(--primary); min-height: 100px; max-height: 300px; overflow-y: auto; white-space: pre-line;">
+          <!-- Texto da observação será inserido aqui -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SISTEMA DE TOASTS -->
+  <div id="toast" class="toast hidden">
+    <div class="toast-content">
+      <span class="toast-icon">✓</span>
+      <span id="toast-message">Mensagem de sucesso!</span>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="app.js?v=1.0.1"></script>
+</body>
+</html>

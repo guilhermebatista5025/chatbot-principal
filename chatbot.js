@@ -142,16 +142,23 @@ async function saveAgendamento(agendamento) {
         valor_final: agendamento.valorFinal,
         observacoes: agendamento.observacoes || "",
         respostas: agendamento.respostas || [],
-        timestamp: agendamento.timestamp || new Date().toISOString()
-      });
+        timestamp: agendamento.timestamp || new Date().toISOString(),
+        status: agendamento.status || "Pendente"
+      })
+      .select()
+      .maybeSingle();
     if (error) {
       console.error("❌ Erro ao salvar agendamento no Supabase:", error.message);
-      return false;
+      return null;
     }
-    return true;
+    if (data && data.id) {
+      agendamento.id = data.id;
+      agendamento.status = data.status || "Pendente";
+    }
+    return data;
   } catch (err) {
     console.error("❌ Erro de conexão ao salvar agendamento:", err.message);
-    return false;
+    return null;
   }
 }
 
@@ -166,6 +173,8 @@ async function getTodosAgendamentos() {
       return [];
     }
     return (data || []).map(row => ({
+      id: row.id,
+      status: row.status || "Pendente",
       from: row.cliente_phone,
       pushname: row.pushname,
       servico: row.servico,
@@ -212,6 +221,7 @@ app.use("/js", express.static(path.join(__dirname, "js")));
 app.use("/img", express.static(path.join(__dirname, "img")));
 app.use("/videos", express.static(path.join(__dirname, "videos")));
 app.use("/assets", express.static(path.join(__dirname, "assets")));
+app.use("/setores", express.static(path.join(__dirname, "SETORES-DE-SERVIÇOS")));
 
 // Servir os arquivos específicos do frontend na raiz
 app.get("/style.css", (req, res) => {
@@ -1239,17 +1249,18 @@ client.on("message", async (msg) => {
         pagamento: pagamento,
         valorFinal: precoFinal,
         timestamp: dados.timestamp,
-        respostas: dados.respostas || []
+        respostas: dados.respostas || [],
+        status: "Pendente"
       };
+
+      // Salva no banco de dados do Supabase e atualiza com ID inserido
+      await saveAgendamento(novoAgendamento);
 
       // Salva no histórico de agendamentos concluídos (memória cache)
       completedAppointments.push(novoAgendamento);
       if (completedAppointments.length > 100) {
         completedAppointments.shift();
       }
-
-      // Salva no banco de dados do Supabase
-      await saveAgendamento(novoAgendamento);
 
       await typing();
 
@@ -1425,22 +1436,58 @@ app.post("/api/appointments", async (req, res) => {
           texto: `Agendamento Web realizado com sucesso! Serviços: ${servico}. Carro: ${veiculo} [${placa || "N/A"}]. Período: ${agendamentoDia} (${agendamentoTurno}). Obs: ${observacoes || "Nenhuma"}`, 
           timestamp: new Date().toISOString() 
         }
-      ]
+      ],
+      status: "Pendente"
     };
+
+    // Salva no banco de dados do Supabase e atualiza com ID inserido
+    await saveAgendamento(novoAgendamento);
 
     completedAppointments.push(novoAgendamento);
     if (completedAppointments.length > 100) {
       completedAppointments.shift();
     }
 
-    // Salva no banco de dados do Supabase
-    await saveAgendamento(novoAgendamento);
-
     console.log(`📅 Novo agendamento registrado via WEBSITE para ${pushname}: ${servico} (Valor: R$ ${valorFinal},00)`);
     res.json({ success: true, message: "Agendamento registrado com sucesso!" });
   } catch (error) {
     console.error("❌ Erro ao registrar agendamento via Web:", error);
     res.status(500).json({ success: false, message: "Erro interno no servidor ao registrar agendamento." });
+  }
+});
+
+// Endpoint para atualizar o status de um agendamento
+app.post("/api/appointments/status", async (req, res) => {
+  const { id, status } = req.body;
+  
+  if (!id || !status) {
+    return res.status(400).json({ success: false, message: "Parâmetros id e status são obrigatórios." });
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from("agendamentos")
+      .update({ status: status })
+      .eq("id", id)
+      .select()
+      .maybeSingle();
+      
+    if (error) {
+      console.error(`❌ Erro ao atualizar status do agendamento ${id}:`, error.message);
+      return res.status(500).json({ success: false, message: "Erro ao atualizar status no Supabase." });
+    }
+    
+    // Atualizar o status no cache local (completedAppointments) se estiver lá
+    const index = completedAppointments.findIndex(app => app.id === id);
+    if (index !== -1) {
+      completedAppointments[index].status = status;
+    }
+    
+    console.log(`✅ Status do agendamento ${id} atualizado para: ${status}`);
+    res.json({ success: true, message: "Status do agendamento atualizado com sucesso!", data });
+  } catch (err) {
+    console.error(`❌ Erro ao atualizar status do agendamento ${id}:`, err);
+    res.status(500).json({ success: false, message: "Erro interno no servidor ao atualizar status." });
   }
 });
 

@@ -149,6 +149,10 @@ function initNavigation() {
       title: "Agendamentos Confirmados",
       subtitle: "Consulte e gerencie os agendamentos confirmados pelo chatbot em tempo real em formato de cards premium."
     },
+    "section-ready": {
+      title: "Prontos para Retirada",
+      subtitle: "Monitore os veículos que já foram finalizados pelos colaboradores e entre em contato com os clientes para entrega."
+    },
     "section-clients": {
       title: "CRM - Clientes Cadastrados",
       subtitle: "Consulte CPFs, contatos e a frota de veículos registrados por seus clientes."
@@ -458,6 +462,10 @@ function initSessionsMonitoring() {
   const btnClearAppointments = document.getElementById("btn-clear-appointments");
   const completedBadge = document.getElementById("completed-badge");
 
+  // Elementos de Prontos p/ Retirada
+  const readyCardsContainer = document.getElementById("ready-cards-container");
+  const readyBadge = document.getElementById("ready-badge");
+
   // Globais do Modal de Detalhes
   const modal = document.getElementById("details-modal");
   const modalClientName = document.getElementById("modal-client-name");
@@ -668,102 +676,215 @@ function initSessionsMonitoring() {
       const appointments = await res.json();
       completedAppointmentsCache = appointments;
 
+      // Filtrar agendamentos ativos e prontos (ignora "Entregue")
+      const activeApps = appointments.filter(app => app.status !== "Entregue");
+      const readyApps = appointments.filter(app => app.status === "Finalizado");
+
       if (completedBadge) {
-        completedBadge.textContent = appointments.length;
+        completedBadge.textContent = activeApps.length;
+      }
+      if (readyBadge) {
+        readyBadge.textContent = readyApps.length;
       }
       const totalBookingsCountEl = document.getElementById("metric-total-bookings-count");
       if (totalBookingsCountEl) {
-        totalBookingsCountEl.textContent = `${appointments.length} Confirmado(s)`;
+        totalBookingsCountEl.textContent = `${activeApps.length} Ativo(s)`;
       }
 
-      if (!completedCardsContainer) return;
+      // 1. RENDERIZAR CONFIRMADOS/ATIVOS
+      if (completedCardsContainer) {
+        if (activeApps.length === 0) {
+          completedCardsContainer.innerHTML = `
+            <div class="completed-empty-state">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              <p>Nenhum agendamento concluído recentemente.</p>
+            </div>
+          `;
+        } else {
+          completedCardsContainer.innerHTML = "";
+          activeApps.forEach((app, idx) => {
+            const card = document.createElement("div");
+            card.className = "completed-card";
 
-      if (appointments.length === 0) {
-        completedCardsContainer.innerHTML = `
-          <div class="completed-empty-state">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-            <p>Nenhum agendamento concluído recentemente.</p>
-          </div>
-        `;
-        return;
+            const serviceColor = getServiceColor(app.servico);
+            card.style.setProperty('--service-color', serviceColor);
+            card.style.setProperty('--service-color-glow', getServiceColorGlow(serviceColor));
+
+            const formattedNum = formatPhoneNumber(app.from);
+            const dateStr = app.timestamp ? new Date(app.timestamp).toLocaleString("pt-BR") : "N/A";
+            const valor = app.valorFinal ? `R$ ${app.valorFinal},00` : "Orçamento Manual";
+            const turno = app.agendamentoTurno || "Geral";
+            const isManha = turno.toLowerCase().includes("manhã") || turno.toLowerCase().includes("manha");
+            const badgeClass = isManha ? "manha" : "tarde";
+            const badgeText = isManha ? "Manhã" : "Tarde";
+            const displayName = app.pushname && app.pushname !== "Cliente" ? app.pushname : "Cliente";
+
+            card.innerHTML = `
+              <div class="completed-card-header">
+                <div class="completed-client-info">
+                  <span class="completed-client-name">${displayName}</span>
+                  <span class="completed-client-phone">${formattedNum}</span>
+                </div>
+                <span class="completed-price">${valor}</span>
+              </div>
+              <div class="completed-card-body">
+                <div class="completed-info-row">
+                  <span class="completed-info-label">💎 Serviço:</span>
+                  <span class="completed-info-value" style="color: var(--service-color, var(--primary)); font-weight: 700;">${app.servico}</span>
+                </div>
+                <div class="completed-info-row">
+                  <span class="completed-info-label">🚗 Veículo:</span>
+                  <span class="completed-info-value"><span class="stage-badge veiculo" style="font-size: 0.7rem; padding: 2px 6px;">${app.veiculo}</span></span>
+                </div>
+                <div class="completed-info-row">
+                  <span class="completed-info-label">⏱️ Período:</span>
+                  <span class="completed-info-value">
+                    <span class="app-period-badge ${badgeClass}" style="font-size: 0.68rem; padding: 2px 6px;">${badgeText}</span>
+                  </span>
+                </div>
+                <div class="completed-info-row">
+                  <span class="completed-info-label">📅 Data:</span>
+                  <span class="completed-info-value"><span class="stage-badge menu" style="font-size: 0.7rem; padding: 2px 6px;">${app.agendamentoDia}</span></span>
+                </div>
+                <div class="completed-info-row">
+                  <span class="completed-info-label">💳 Pagamento:</span>
+                  <span class="completed-info-value"><span class="stage-badge pagamento" style="font-size: 0.7rem; padding: 2px 6px;">${app.pagamento}</span></span>
+                </div>
+                <div class="completed-info-row">
+                  <span class="completed-info-label">🚦 Status:</span>
+                  <span class="completed-info-value">
+                    <span class="stage-badge" style="font-size: 0.7rem; padding: 2px 6px; font-weight: 700; ${app.status === 'Finalizado' ? 'background-color: #DEF7EC; color: #03543F;' : 'background-color: #FEF08A; color: #713F12;'}">
+                      ${app.status === 'Finalizado' ? '🟢 Pronto para entrega' : '🟡 Em andamento'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div class="completed-card-footer">
+                <div class="completed-date-time">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  <span>Finalizado: ${dateStr}</span>
+                </div>
+                <button class="btn-primary view-history-details-btn" data-id="${app.id}" style="padding: 6px 12px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 4px;">
+                  <span>+ Info</span>
+                </button>
+              </div>
+            `;
+            completedCardsContainer.appendChild(card);
+          });
+        }
       }
 
-      completedCardsContainer.innerHTML = "";
-      appointments.forEach((app, idx) => {
-        const card = document.createElement("div");
-        card.className = "completed-card";
+      // 2. RENDERIZAR PRONTOS PARA RETIRADA
+      if (readyCardsContainer) {
+        if (readyApps.length === 0) {
+          readyCardsContainer.innerHTML = `
+            <div class="completed-empty-state">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              <p>Nenhum veículo aguardando retirada ou pronto para entrega.</p>
+            </div>
+          `;
+        } else {
+          readyCardsContainer.innerHTML = "";
+          readyApps.forEach((app) => {
+            const card = document.createElement("div");
+            card.className = "completed-card";
 
-        // Aplica cores dinâmicas com base no serviço
-        const serviceColor = getServiceColor(app.servico);
-        card.style.setProperty('--service-color', serviceColor);
-        card.style.setProperty('--service-color-glow', getServiceColorGlow(serviceColor));
+            const serviceColor = getServiceColor(app.servico);
+            card.style.setProperty('--service-color', serviceColor);
+            card.style.setProperty('--service-color-glow', getServiceColorGlow(serviceColor));
 
-        const formattedNum = formatPhoneNumber(app.from);
-        
-        const dateStr = app.timestamp ? new Date(app.timestamp).toLocaleString("pt-BR") : "N/A";
-        const valor = app.valorFinal ? `R$ ${app.valorFinal},00` : "Orçamento Manual";
-        
-        const turno = app.agendamentoTurno || "Geral";
-        const isManha = turno.toLowerCase().includes("manhã") || turno.toLowerCase().includes("manha");
-        
-        const badgeClass = isManha ? "manha" : "tarde";
-        const badgeText = isManha ? "Manhã" : "Tarde";
+            const formattedNum = formatPhoneNumber(app.from);
+            const cleanPhone = app.from.replace(/\D/g, "");
+            
+            // Placa limpa
+            let plateClean = app.placa || "N/A";
+            if (plateClean === "N/A" && app.veiculo && app.veiculo.includes("[")) {
+              const parts = app.veiculo.split("[");
+              if (parts.length > 1) {
+                plateClean = parts[1].replace("]", "").trim();
+              }
+            }
 
-        const displayName = app.pushname && app.pushname !== "Cliente" ? app.pushname : "Cliente";
+            const valorText = app.valorFinal ? `R$ ${app.valorFinal},00` : "Orçamento Manual";
+            const displayName = app.pushname && app.pushname !== "Cliente" ? app.pushname : "Cliente";
+            const dateStr = app.timestamp ? new Date(app.timestamp).toLocaleString("pt-BR") : "N/A";
 
-        card.innerHTML = `
-          <div class="completed-card-header">
-            <div class="completed-client-info">
-              <span class="completed-client-name">${displayName}</span>
-              <span class="completed-client-phone">${formattedNum}</span>
-            </div>
-            <span class="completed-price">${valor}</span>
-          </div>
-          
-          <div class="completed-card-body">
-            <div class="completed-info-row">
-              <span class="completed-info-label">💎 Serviço:</span>
-              <span class="completed-info-value" style="color: var(--service-color, var(--primary)); font-weight: 700;">${app.servico}</span>
-            </div>
-            <div class="completed-info-row">
-              <span class="completed-info-label">🚗 Veículo:</span>
-              <span class="completed-info-value"><span class="stage-badge veiculo" style="font-size: 0.7rem; padding: 2px 6px;">${app.veiculo}</span></span>
-            </div>
-            <div class="completed-info-row">
-              <span class="completed-info-label">⏱️ Período:</span>
-              <span class="completed-info-value">
-                <span class="app-period-badge ${badgeClass}" style="font-size: 0.68rem; padding: 2px 6px;">${badgeText}</span>
-              </span>
-            </div>
-            <div class="completed-info-row">
-              <span class="completed-info-label">📅 Data:</span>
-              <span class="completed-info-value"><span class="stage-badge menu" style="font-size: 0.7rem; padding: 2px 6px;">${app.agendamentoDia}</span></span>
-            </div>
-            <div class="completed-info-row">
-              <span class="completed-info-label">💳 Pagamento:</span>
-              <span class="completed-info-value"><span class="stage-badge pagamento" style="font-size: 0.7rem; padding: 2px 6px;">${app.pagamento}</span></span>
-            </div>
-          </div>
-          
-          <div class="completed-card-footer">
-            <div class="completed-date-time">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              <span>Finalizado: ${dateStr}</span>
-            </div>
-            <button class="btn-primary view-history-details-btn" data-idx="${idx}" style="padding: 6px 12px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 4px;">
-              <span>+ Info</span>
-            </button>
-          </div>
-        `;
+            // Template do link de contato direto do WhatsApp
+            const msgTemplate = `Olá *${displayName}*! Seu veículo *${app.veiculo.split("[")[0].trim()}* placa *${plateClean}* já está pronto para retirada na Auto Sport Estética Automotiva! 🚗💎 O valor total ficou em ${valorText}. Pode vir retirar quando desejar! Obrigado pela preferência.`;
+            const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msgTemplate)}`;
 
-        completedCardsContainer.appendChild(card);
-      });
+            card.innerHTML = `
+              <div class="completed-card-header">
+                <div class="completed-client-info">
+                  <span class="completed-client-name">${displayName}</span>
+                  <span class="completed-client-phone">${formattedNum}</span>
+                </div>
+                <span class="completed-price" style="color: var(--primary); text-shadow: 0 0 8px var(--primary-glow);">${valorText}</span>
+              </div>
+              <div class="completed-card-body">
+                <div class="completed-info-row">
+                  <span class="completed-info-label">💎 Serviço:</span>
+                  <span class="completed-info-value" style="color: var(--service-color, var(--primary)); font-weight: 700;">${app.servico}</span>
+                </div>
+                <div class="completed-info-row">
+                  <span class="completed-info-label">🚗 Veículo:</span>
+                  <span class="completed-info-value"><span class="stage-badge veiculo" style="font-size: 0.7rem; padding: 2px 6px;">${app.veiculo}</span></span>
+                </div>
+                <div class="completed-info-row">
+                  <span class="completed-info-label">📅 Data Concluído:</span>
+                  <span class="completed-info-value"><span class="stage-badge menu" style="font-size: 0.7rem; padding: 2px 6px;">${dateStr}</span></span>
+                </div>
+                <div class="completed-info-row">
+                  <span class="completed-info-label">💳 Pagamento:</span>
+                  <span class="completed-info-value"><span class="stage-badge pagamento" style="font-size: 0.7rem; padding: 2px 6px;">${app.pagamento}</span></span>
+                </div>
+              </div>
+              <div class="completed-card-footer" style="gap: 8px;">
+                <a href="${whatsappUrl}" target="_blank" class="btn-primary" style="text-decoration: none; padding: 8px 12px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 4px; border-radius: var(--radius-sm);">
+                  <span>💬 Contatar Cliente</span>
+                </a>
+                <button class="btn-secondary danger btn-deliver-car" data-id="${app.id}" style="padding: 8px 12px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                  <span>📦 Entregar Veículo</span>
+                </button>
+              </div>
+            `;
+            readyCardsContainer.appendChild(card);
+          });
+
+          // Eventos para o botão "Entregar Veículo" (status -> "Entregue")
+          document.querySelectorAll(".btn-deliver-car").forEach(btn => {
+            btn.addEventListener("click", async () => {
+              const appId = btn.getAttribute("data-id");
+              if (!appId) return;
+
+              if (confirm("Confirmar a entrega deste veículo ao cliente? Ele será enviado para o histórico de entregues.")) {
+                try {
+                  const resStatus = await fetch(`${API_URL}/api/appointments/status`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: appId, status: "Entregue" })
+                  });
+                  const result = await resStatus.json();
+                  if (result.success) {
+                    showToast("Veículo entregue e arquivado com sucesso!");
+                    fetchAppointments();
+                  } else {
+                    showToast("Erro ao processar entrega do veículo.");
+                  }
+                } catch (err) {
+                  showToast("Falha na comunicação com o servidor.");
+                }
+              }
+            });
+          });
+        }
+      }
 
       // Evento de clique para o botão + Info do Histórico (Modal)
       document.querySelectorAll(".view-history-details-btn").forEach(btn => {
         btn.addEventListener("click", () => {
-          const idx = parseInt(btn.getAttribute("data-idx"));
-          const app = completedAppointmentsCache[idx];
+          const appId = btn.getAttribute("data-id");
+          const app = completedAppointmentsCache.find(a => a.id === appId);
           if (!app) return;
           
           const formattedNum = formatPhoneNumber(app.from);
@@ -1764,6 +1885,14 @@ function initCalendarMonitoring() {
         <div class="completed-info-row">
           <span class="completed-info-label">💳 Pagamento:</span>
           <span class="completed-info-value"><span class="stage-badge pagamento" style="font-size: 0.7rem; padding: 2px 6px;">${app.pagamento}</span></span>
+        </div>
+        <div class="completed-info-row">
+          <span class="completed-info-label">🚦 Status:</span>
+          <span class="completed-info-value">
+            <span class="stage-badge" style="font-size: 0.7rem; padding: 2px 6px; font-weight: 700; ${app.status === 'Finalizado' ? 'background-color: #DEF7EC; color: #03543F;' : 'background-color: #FEF08A; color: #713F12;'}">
+              ${app.status === 'Finalizado' ? '🟢 Pronto para entrega' : '🟡 Em andamento'}
+            </span>
+          </span>
         </div>
       </div>
       
