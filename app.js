@@ -3,6 +3,38 @@
 // Caso contrário, informe a URL do seu backend implantado na nuvem (ex: "https://seu-chatbot-backend.up.railway.app").
 const API_URL = "";
 
+// Função auxiliar para obter a cor correspondente a cada tipo de serviço
+function getServiceColor(servico) {
+  if (!servico) return "#2563EB";
+  const name = servico.toLowerCase();
+  
+  if (name.includes("lavagem")) {
+    return "#3B82F6"; // Azul brilhante
+  } else if (name.includes("higienização") || name.includes("higienizacao") || name.includes("detalhamento interno")) {
+    return "#10B981"; // Verde esmeralda
+  } else if (name.includes("polimento") || name.includes("lustro")) {
+    return "#F59E0B"; // Laranja / Âmbar
+  } else if (name.includes("vitrificação") || name.includes("vitrificacao")) {
+    return "#8B5CF6"; // Roxo violeta
+  } else if (name.includes("verniz") || name.includes("motor")) {
+    return "#06B6D4"; // Ciano
+  } else if (name.includes("farol") || name.includes("faróis") || name.includes("farois")) {
+    return "#EAB308"; // Amarelo ouro
+  } else if (name.includes("mecanica") || name.includes("mecânica")) {
+    return "#EF4444"; // Vermelho
+  }
+  
+  // Hash consistente para serviços dinâmicos cadastrados pelo usuário
+  const hash = servico.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#06B6D4", "#EAB308", "#EF4444", "#EC4899", "#14B8A6"];
+  return colors[hash % colors.length];
+}
+
+function getServiceColorGlow(color) {
+  // Retorna a cor com 15% de opacidade para a sombra (glow)
+  return color + "26";
+}
+
 // Caches globais compartilhados para sincronismo em tempo real
 let activeSessionsCache = [];
 let completedAppointmentsCache = [];
@@ -76,20 +108,13 @@ function updateChartTheme() {
   servicesChart.options.plugins.tooltip.bodyColor = isLight ? "#475569" : "#f3f4f6";
   servicesChart.options.plugins.tooltip.borderColor = isLight ? "rgba(0, 0, 0, 0.06)" : "rgba(255, 255, 255, 0.08)";
 
-  // Atualizar gradiente das barras
-  const canvas = document.getElementById("services-chart");
-  if (canvas) {
-    const ctx = canvas.getContext("2d");
-    const gradient = ctx.createLinearGradient(0, 0, 0, 270);
-    if (isLight) {
-      gradient.addColorStop(0, "rgba(37, 99, 235, 0.85)");
-      gradient.addColorStop(1, "rgba(37, 99, 235, 0.08)");
-    } else {
-      gradient.addColorStop(0, "rgba(37, 99, 235, 0.6)");
-      gradient.addColorStop(1, "rgba(139, 92, 246, 0.1)");
-    }
-    servicesChart.data.datasets[0].backgroundColor = gradient;
-  }
+  // Atualizar cores das barras com base nos serviços
+  const labels = servicesChart.data.labels || [];
+  const barColors = labels.map(label => getServiceColor(label));
+  servicesChart.data.datasets[0].backgroundColor = barColors;
+  servicesChart.data.datasets[0].borderColor = barColors;
+  servicesChart.data.datasets[0].hoverBackgroundColor = barColors;
+  servicesChart.data.datasets[0].hoverBorderColor = barColors;
   
   servicesChart.update();
 }
@@ -668,6 +693,11 @@ function initSessionsMonitoring() {
         const card = document.createElement("div");
         card.className = "completed-card";
 
+        // Aplica cores dinâmicas com base no serviço
+        const serviceColor = getServiceColor(app.servico);
+        card.style.setProperty('--service-color', serviceColor);
+        card.style.setProperty('--service-color-glow', getServiceColorGlow(serviceColor));
+
         const formattedNum = formatPhoneNumber(app.from);
         
         const dateStr = app.timestamp ? new Date(app.timestamp).toLocaleString("pt-BR") : "N/A";
@@ -693,18 +723,21 @@ function initSessionsMonitoring() {
           <div class="completed-card-body">
             <div class="completed-info-row">
               <span class="completed-info-label">💎 Serviço:</span>
-              <span class="completed-info-value" style="color: var(--primary);">${app.servico}</span>
+              <span class="completed-info-value" style="color: var(--service-color, var(--primary)); font-weight: 700;">${app.servico}</span>
             </div>
             <div class="completed-info-row">
               <span class="completed-info-label">🚗 Veículo:</span>
               <span class="completed-info-value"><span class="stage-badge veiculo" style="font-size: 0.7rem; padding: 2px 6px;">${app.veiculo}</span></span>
             </div>
             <div class="completed-info-row">
-              <span class="completed-info-label">🗓️ Período:</span>
+              <span class="completed-info-label">⏱️ Período:</span>
               <span class="completed-info-value">
-                <span class="app-period-badge ${badgeClass}" style="font-size: 0.68rem; margin-right: 4px; padding: 2px 6px;">${badgeText}</span>
-                <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 500;">${app.agendamentoDia}</span>
+                <span class="app-period-badge ${badgeClass}" style="font-size: 0.68rem; padding: 2px 6px;">${badgeText}</span>
               </span>
+            </div>
+            <div class="completed-info-row">
+              <span class="completed-info-label">📅 Data:</span>
+              <span class="completed-info-value"><span class="stage-badge menu" style="font-size: 0.7rem; padding: 2px 6px;">${app.agendamentoDia}</span></span>
             </div>
             <div class="completed-info-row">
               <span class="completed-info-label">💳 Pagamento:</span>
@@ -1143,18 +1176,15 @@ function updateAnalytics(sessions, appointments) {
   if (servicesChart) {
     servicesChart.data.labels = labels;
     servicesChart.data.datasets[0].data = dataValues;
+    servicesChart.data.datasets[0].backgroundColor = labels.map(label => getServiceColor(label));
+    servicesChart.data.datasets[0].borderColor = labels.map(label => getServiceColor(label));
+    servicesChart.data.datasets[0].hoverBackgroundColor = labels.map(label => getServiceColor(label));
+    servicesChart.data.datasets[0].hoverBorderColor = labels.map(label => getServiceColor(label));
     servicesChart.update();
   } else {
-    // Criar gradiente para a barra para visual Premium espetacular
+    // Definir as cores correspondentes para cada serviço na barra
     const isLight = document.body.classList.contains("light-theme");
-    const gradient = ctx.createLinearGradient(0, 0, 0, 270);
-    if (isLight) {
-      gradient.addColorStop(0, "rgba(37, 99, 235, 0.85)");
-      gradient.addColorStop(1, "rgba(37, 99, 235, 0.08)");
-    } else {
-      gradient.addColorStop(0, "rgba(37, 99, 235, 0.6)");
-      gradient.addColorStop(1, "rgba(139, 92, 246, 0.1)");
-    }
+    const barColors = labels.map(label => getServiceColor(label));
 
     servicesChart = new Chart(ctx, {
       type: "bar",
@@ -1163,13 +1193,13 @@ function updateAnalytics(sessions, appointments) {
         datasets: [{
           label: "Agendados",
           data: dataValues,
-          backgroundColor: gradient,
-          borderColor: "#3B82F6",
+          backgroundColor: barColors,
+          borderColor: barColors,
           borderWidth: 2,
           borderRadius: 6,
           borderSkipped: false,
-          hoverBackgroundColor: "rgba(37, 99, 235, 0.8)",
-          hoverBorderColor: "#60A5FA"
+          hoverBackgroundColor: barColors,
+          hoverBorderColor: barColors
         }]
       },
       options: {
@@ -1685,6 +1715,11 @@ function initCalendarMonitoring() {
     const card = document.createElement("div");
     card.className = "completed-card";
 
+    // Aplica cores dinâmicas com base no serviço
+    const serviceColor = getServiceColor(app.servico);
+    card.style.setProperty('--service-color', serviceColor);
+    card.style.setProperty('--service-color-glow', getServiceColorGlow(serviceColor));
+
     const formattedNum = formatPhoneNumber(app.from);
     
     const dateStr = app.timestamp ? new Date(app.timestamp).toLocaleString("pt-BR") : "N/A";
@@ -1710,18 +1745,21 @@ function initCalendarMonitoring() {
       <div class="completed-card-body">
         <div class="completed-info-row">
           <span class="completed-info-label">💎 Serviço:</span>
-          <span class="completed-info-value" style="color: var(--primary);">${app.servico}</span>
+          <span class="completed-info-value" style="color: var(--service-color, var(--primary)); font-weight: 700;">${app.servico}</span>
         </div>
         <div class="completed-info-row">
           <span class="completed-info-label">🚗 Veículo:</span>
           <span class="completed-info-value"><span class="stage-badge veiculo" style="font-size: 0.7rem; padding: 2px 6px;">${app.veiculo}</span></span>
         </div>
         <div class="completed-info-row">
-          <span class="completed-info-label">🗓️ Período:</span>
+          <span class="completed-info-label">⏱️ Período:</span>
           <span class="completed-info-value">
-            <span class="app-period-badge ${badgeClass}" style="font-size: 0.68rem; margin-right: 4px; padding: 2px 6px;">${badgeText}</span>
-            <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 500;">${app.agendamentoDia}</span>
+            <span class="app-period-badge ${badgeClass}" style="font-size: 0.68rem; padding: 2px 6px;">${badgeText}</span>
           </span>
+        </div>
+        <div class="completed-info-row">
+          <span class="completed-info-label">📅 Data:</span>
+          <span class="completed-info-value"><span class="stage-badge menu" style="font-size: 0.7rem; padding: 2px 6px;">${app.agendamentoDia}</span></span>
         </div>
         <div class="completed-info-row">
           <span class="completed-info-label">💳 Pagamento:</span>

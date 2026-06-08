@@ -1878,7 +1878,8 @@ body {
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-  max-height: 380px;
+  flex-grow: 1;
+  min-height: 0;
   padding-right: 4px;
 }
 
@@ -2022,12 +2023,33 @@ body {
   position: relative;
   overflow: hidden;
   animation: slideUp 0.3s ease-out;
+  flex-shrink: 0;
+}
+
+/* SLEEK AND COMPACT CARDS FOR CALENDAR SIDE PANEL */
+.day-appointments-list .completed-card {
+  padding: 16px;
+  gap: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border-radius: var(--radius-md);
+}
+
+.day-appointments-list .completed-card-header {
+  padding-bottom: 8px;
+}
+
+.day-appointments-list .completed-card-body {
+  gap: 8px;
+}
+
+.day-appointments-list .completed-card-footer {
+  padding-top: 10px;
 }
 
 .completed-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(37, 99, 235, 0.25);
-  box-shadow: 0 12px 40px rgba(37, 99, 235, 0.15);
+  border-color: var(--service-color, rgba(37, 99, 235, 0.25));
+  box-shadow: 0 12px 40px var(--service-color-glow, rgba(37, 99, 235, 0.15));
 }
 
 .completed-card::before {
@@ -2037,7 +2059,7 @@ body {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--primary), var(--purple));
+  background: var(--service-color, linear-gradient(90deg, var(--primary), var(--purple)));
 }
 
 .completed-card-header {

@@ -4,8 +4,6 @@
   "mensagemFinal": "Nossa equipe entrará em contato para confirmar o horário.",
   "formasPagamento": [
     "PIX (5% Desconto)",
-    "Cartão de Crédito",
-    "Cartão de Débito",
     "Dinheiro",
     "Pagar Presencial"
   ],
@@ -15,75 +13,76 @@
     "Polimento Técnico & Lustro",
     "Vitrificação de Pintura 9H",
     "Verniz e Detalhamento de Motor",
-    "Revitalização de Faróis"
+    "Revitalização de Faróis",
+    "mecanica"
   ],
   "servicos": {
     "1": {
       "nome": "Lavagem Técnica Detalhada",
-      "descricao": "Lavagem com dois baldes, limpeza detalhada de caixas de roda e cera SiO2.",
       "precos": {
-        "Pequeno": 80,
-        "Médio": 100,
         "SUV": 130,
+        "Médio": 100,
+        "Pequeno": 80,
         "Caminhonete": 150
-      }
+      },
+      "descricao": "Lavagem com dois baldes, limpeza detalhada de caixas de roda e cera SiO2."
     },
     "2": {
       "nome": "Higienização e Detalhamento Interno",
-      "descricao": "Extração completa de estofados, teto, carpetes e oxi-sanitização.",
       "precos": {
-        "Pequeno": 200,
-        "Médio": 250,
         "SUV": 300,
+        "Médio": 250,
+        "Pequeno": 200,
         "Caminhonete": 350
-      }
+      },
+      "descricao": "Extração completa de estofados, teto, carpetes e oxi-sanitização."
     },
     "3": {
       "nome": "Polimento Técnico & Lustro",
-      "descricao": "Eliminação de riscos e holografias com restauração do espelhamento original.",
       "precos": {
-        "Pequeno": 400,
-        "Médio": 500,
         "SUV": 600,
+        "Médio": 500,
+        "Pequeno": 400,
         "Caminhonete": 700
-      }
+      },
+      "descricao": "Eliminação de riscos e holografias com restauração do espelhamento original."
     },
     "4": {
       "nome": "Vitrificação de Pintura 9H",
-      "descricao": "Proteção de pintura cerâmica de altíssima durabilidade (até 3 anos).",
       "precos": {
-        "Pequeno": 700,
-        "Médio": 850,
         "SUV": 1000,
+        "Médio": 850,
+        "Pequeno": 700,
         "Caminhonete": 1200
-      }
+      },
+      "descricao": "Proteção de pintura cerâmica de altíssima durabilidade (até 3 anos)."
     },
     "5": {
       "nome": "Verniz e Detalhamento de Motor",
-      "descricao": "Limpeza técnica detalhada com pincéis e aplicação de verniz protetor.",
       "precos": {
-        "Pequeno": 100,
-        "Médio": 120,
         "SUV": 140,
+        "Médio": 120,
+        "Pequeno": 100,
         "Caminhonete": 160
-      }
+      },
+      "descricao": "Limpeza técnica detalhada com pincéis e aplicação de verniz protetor."
     },
     "6": {
       "nome": "Revitalização de Faróis",
-      "descricao": "Lixamento técnico e aplicação de selante vitrificador no par de lentes.",
       "precos": {
-        "Pequeno": 120,
-        "Médio": 120,
         "SUV": 120,
+        "Médio": 120,
+        "Pequeno": 120,
         "Caminhonete": 120
-      }
+      },
+      "descricao": "Lixamento técnico e aplicação de selante vitrificador no par de lentes."
+    },
+    "7": {
+      "nome": "Mecanica"
     }
   },
-  "sujeiraAdicionais": {
-    "Leve": 0,
-    "Moderada": 30,
-    "Pesada": 80
-  },
   "endereco": "Av. Prefeito Samuel Batista Cruz, 1305 - Centro, Linhares - ES, 29900-085",
-  "linkMapa": "https://maps.google.com/?q=Auto+Sport+Centro+Est%C3%A9tica+Automotivo+Linhares"
+  "linkMapa": "https://maps.google.com/?q=Auto+Sport+Centro+Est%C3%A9tica+Automotivo+Linhares",
+  "horarioManha": "08:00 às 12:00",
+  "horarioTarde": "13:00 às 17:00"
 }

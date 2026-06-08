@@ -635,12 +635,12 @@ client.on("message", async (msg) => {
           `4️⃣ Nossa Localização`
         );
       } else {
-        // CLIENTE NOVO: Inicia cadastro!
+        // CLIENTE NOVO: Inicia cadastro pedindo o CPF!
         const whatsappName = msg.pushname || (contact ? contact.pushname : null) || "Cliente";
         userState[msg.from] = {
           from: msg.from,
           pushname: whatsappName,
-          etapa: "reg_nome",
+          etapa: "reg_cpf",
           timestamp: new Date().toISOString(),
           respostas: [
             { autor: "cliente", texto: msg.body || "", timestamp: new Date().toISOString() }
@@ -650,8 +650,8 @@ client.on("message", async (msg) => {
         await sendBotMessage(
           msg.from,
           `${saudacao}! 👋 Seja muito bem-vindo à *${botConfig.nomeEmpresa}*!\n\n` +
-          `Identifiquei que este é seu *primeiro contato* conosco. Para te fornecer orçamentos rápidos e agendamentos sob medida, vamos fazer um cadastro super rápido. 🚀\n\n` +
-          `✍️ *Por favor, digite o seu nome completo:*`
+          `Identifiquei que este é seu *primeiro contato* conosco. Para te fornecer orçamentos rápidos e agendamentos sob medida, vamos verificar seu cadastro. 🚀\n\n` +
+          `✍️ *Por favor, informe o seu CPF (apenas números ou formatado):*`
         );
       }
       return;
@@ -661,46 +661,85 @@ client.on("message", async (msg) => {
     // FLUXO DE CADASTRO - NOVO CLIENTE (CRM)
     // =====================================
 
-    // Passo 1: Recebe Nome Completo
+    // Passo 1: Recebe CPF (Verifica se já está cadastrado no Supabase)
+    if (userState[msg.from]?.etapa === "reg_cpf") {
+      const cpf = msg.body.trim();
+      const cleanCpf = cpf.replace(/\D/g, "");
+
+      if (!cleanCpf || cleanCpf.length < 11) {
+        await typing();
+        await sendBotMessage(
+          msg.from,
+          `❌ CPF inválido. Por favor, informe um CPF válido contendo apenas números ou com pontuação (ex: 123.456.789-00):`
+        );
+        return;
+      }
+
+      const clienteExistente = await getClienteByCpf(cleanCpf);
+
+      if (clienteExistente) {
+        // CLIENTE ENCONTRADO POR CPF: Vincula o número de telefone no Supabase
+        await typing();
+
+        if (clienteExistente.phone !== msg.from) {
+          // Deleta o registro com o telefone antigo para evitar conflito de CPF único
+          await deleteCliente(clienteExistente.phone);
+          clienteExistente.phone = msg.from;
+        }
+
+        const success = await saveCliente(clienteExistente);
+
+        if (success) {
+          // Ativa o Menu Principal
+          userState[msg.from] = {
+            from: msg.from,
+            pushname: clienteExistente.nome,
+            etapa: "menu",
+            timestamp: new Date().toISOString(),
+            respostas: userState[msg.from].respostas || []
+          };
+
+          await sendBotMessage(
+            msg.from,
+            `Cadastro localizado com sucesso, *${clienteExistente.nome}*! 👋 Que bom ver você na *${botConfig.nomeEmpresa}*! 🚗💎\n\n` +
+            `Como posso te ajudar hoje? Selecione uma opção:\n\n` +
+            `1️⃣ Agendar um Serviço\n` +
+            `2️⃣ Ver Serviços e Preços\n` +
+            `3️⃣ Formas de Pagamento\n` +
+            `4️⃣ Nossa Localização`
+          );
+        } else {
+          await sendBotMessage(
+            msg.from,
+            `⚠️ Encontramos seu cadastro, mas ocorreu um erro ao atualizar seu número de telefone. Por favor, envie seu CPF novamente:`
+          );
+        }
+        return;
+      }
+
+      // CLIENTE NÃO ENCONTRADO: Segue para o cadastro do Nome
+      userState[msg.from].cpf = cleanCpf;
+      userState[msg.from].etapa = "reg_nome";
+
+      await typing();
+      await sendBotMessage(
+        msg.from,
+        `Não encontrei um cadastro ativo com esse CPF. Vamos criá-lo rapidinho! 😊\n\n` +
+        `✍️ *Por favor, digite o seu nome completo:*`
+      );
+      return;
+    }
+
+    // Passo 2: Recebe Nome Completo (após CPF não cadastrado)
     if (userState[msg.from]?.etapa === "reg_nome") {
       const nome = msg.body.trim();
       userState[msg.from].nome = nome;
-      userState[msg.from].etapa = "reg_cpf";
+      userState[msg.from].etapa = "reg_quantos";
       
       await typing();
       await sendBotMessage(
         msg.from,
         `Prazer em te conhecer, *${nome}*! 😊\n\n` +
-        `Agora, por favor, informe o seu *CPF* (apenas números ou formatado):`
-      );
-      return;
-    }
-
-    // Passo 2: Recebe CPF (Valida se já está cadastrado no Supabase)
-    if (userState[msg.from]?.etapa === "reg_cpf") {
-      const cpf = msg.body.trim();
-      const cleanCpf = cpf.replace(/\D/g, "");
-
-      if (cleanCpf) {
-        const cpfExistente = await getClienteByCpf(cleanCpf);
-        if (cpfExistente && cpfExistente.phone !== msg.from) {
-          await typing();
-          await sendBotMessage(
-            msg.from,
-            `⚠️ *Atenção:* Já identificamos um cadastro ativo com este CPF para outro número de telefone (${cpfExistente.phone}).\n\n` +
-            `Por favor, informe outro CPF válido para continuar seu cadastro:`
-          );
-          return;
-        }
-      }
-
-      userState[msg.from].cpf = cpf;
-      userState[msg.from].etapa = "reg_quantos";
-
-      await typing();
-      await sendBotMessage(
-        msg.from,
-        `Perfeito! Cadastro quase concluído. 🚀\n\n` +
         `🚘 *Quantos veículos você gostaria de cadastrar no seu nome hoje?* (Digite um número de 1 a 5)`
       );
       return;
@@ -941,9 +980,10 @@ client.on("message", async (msg) => {
         let listagemTodos = "";
         Object.keys(botConfig.servicos).forEach((key) => {
           const item = botConfig.servicos[key];
+          const precos = item.precos || {};
           listagemTodos += `✔️ *${item.nome}*:\n` +
-            `   _Pequeno: R$ ${item.precos.Pequeno},00_ | _Médio: R$ ${item.precos.Médio},00_\n` +
-            `   _Grande: R$ ${item.precos.Grande},00_ | _Extra: R$ ${item.precos.Caminhonete},00_\n\n`;
+            `   _Pequeno: R$ ${precos.Pequeno || 0},00_ | _Médio: R$ ${precos.Médio || 0},00_\n` +
+            `   _Grande: R$ ${precos.Grande || 0},00_ | _Extra: R$ ${precos.Caminhonete || 0},00_\n\n`;
         });
 
         await sendBotMessage(
@@ -1042,7 +1082,8 @@ client.on("message", async (msg) => {
       userState[msg.from].servico = item.nome;
       
       const porteCarro = userState[msg.from].porte || "Médio";
-      const precoBase = item.precos[porteCarro] || 100;
+      const precos = item.precos || {};
+      const precoBase = precos[porteCarro] || 100;
       userState[msg.from].precoBase = precoBase;
 
       userState[msg.from].etapa = "sujeira";
