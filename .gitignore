@@ -1,0 +1,9 @@
+.wwebjs_auth/
+.wwebjs_cache/
+.wwebjs_auth_old/
+.wwebjs_cache_old/
+.wwebjs_auth_new/
+.wwebjs_cache_new/
+.node_modules/
+.wwebjs_auth_backup
+node_modules
