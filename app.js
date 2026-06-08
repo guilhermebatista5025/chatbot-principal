@@ -7,6 +7,34 @@ const API_URL = "";
 let activeSessionsCache = [];
 let completedAppointmentsCache = [];
 
+// Função auxiliar para formatar números de telefone no padrão: +55 (DDD) 999999-999 ou +55 (DDD) 99999-999
+function formatPhoneNumber(num) {
+  if (!num) return "";
+  const clean = num.replace(/\D/g, "");
+  
+  if (clean.startsWith("55") && clean.length >= 11) {
+    const ddd = clean.slice(2, 4);
+    const rest = clean.slice(4);
+    if (rest.length === 9) {
+      return `+55 (${ddd}) ${rest.slice(0, 6)}-${rest.slice(6)}`;
+    } else {
+      return `+55 (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    }
+  }
+  
+  if (clean.length >= 10) {
+    const ddd = clean.slice(0, 2);
+    const rest = clean.slice(2);
+    if (rest.length === 9) {
+      return `+55 (${ddd}) ${rest.slice(0, 6)}-${rest.slice(6)}`;
+    } else {
+      return `+55 (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    }
+  }
+
+  return num;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   // Inicializações
   initThemeManager();
@@ -130,6 +158,17 @@ function initNavigation() {
       }
     });
   });
+
+  // Torna os cards de métricas da visão geral clicáveis para navegação nas abas
+  document.querySelectorAll(".clickable-metric-card").forEach(card => {
+    card.addEventListener("click", () => {
+      const targetId = card.getAttribute("data-target");
+      const menuBtn = document.querySelector(`.menu-item[data-target="${targetId}"]`);
+      if (menuBtn) {
+        menuBtn.click();
+      }
+    });
+  });
 }
 
 // ==========================================================================
@@ -194,7 +233,7 @@ function initStatusMonitoring() {
           let phoneStr = "Linha ativa de atendimento";
           if (data.info && data.info.wid) {
             const num = data.info.wid.user;
-            phoneStr = `Linha Ativa: +55 (${num.slice(0,2)}) ${num.slice(2,7)}-${num.slice(7)}`;
+            phoneStr = `Linha Ativa: ${formatPhoneNumber(num)}`;
           }
 
           if (connectedPhone) connectedPhone.textContent = phoneStr;
@@ -480,6 +519,7 @@ function initSessionsMonitoring() {
 
     modal.classList.remove("hidden");
   }
+  window.openDetailsModal = openDetailsModal; // Expor globalmente
 
   async function fetchSessions() {
     try {
@@ -502,8 +542,7 @@ function initSessionsMonitoring() {
           const tr = document.createElement("tr");
           
           // Formatar número
-          const userNum = sess.from.split("@")[0];
-          const formattedNum = `+55 (${userNum.slice(0,2)}) ${userNum.slice(2,7)}-${userNum.slice(7)}`;
+          const formattedNum = formatPhoneNumber(sess.from);
           
           // Se houver pushname salvo, exibe Nome (Número)
           const displayName = sess.pushname && sess.pushname !== "Cliente"
@@ -547,8 +586,7 @@ function initSessionsMonitoring() {
             const sess = activeSessionsCache.find(s => s.from === phone);
             if (!sess) return;
             
-            const userNum = sess.from.split("@")[0];
-            const formattedNum = `+55 (${userNum.slice(0,2)}) ${userNum.slice(2,7)}-${userNum.slice(7)}`;
+            const formattedNum = formatPhoneNumber(sess.from);
             const title = sess.pushname && sess.pushname !== "Cliente" ? `${sess.pushname} (${formattedNum})` : formattedNum;
             
             openDetailsModal(
@@ -608,6 +646,10 @@ function initSessionsMonitoring() {
       if (completedBadge) {
         completedBadge.textContent = appointments.length;
       }
+      const totalBookingsCountEl = document.getElementById("metric-total-bookings-count");
+      if (totalBookingsCountEl) {
+        totalBookingsCountEl.textContent = `${appointments.length} Confirmado(s)`;
+      }
 
       if (!completedCardsContainer) return;
 
@@ -626,8 +668,7 @@ function initSessionsMonitoring() {
         const card = document.createElement("div");
         card.className = "completed-card";
 
-        const userNum = app.from.split("@")[0];
-        const formattedNum = `+55 (${userNum.slice(0,2)}) ${userNum.slice(2,7)}-${userNum.slice(7)}`;
+        const formattedNum = formatPhoneNumber(app.from);
         
         const dateStr = app.timestamp ? new Date(app.timestamp).toLocaleString("pt-BR") : "N/A";
         const valor = app.valorFinal ? `R$ ${app.valorFinal},00` : "Orçamento Manual";
@@ -692,8 +733,7 @@ function initSessionsMonitoring() {
           const app = completedAppointmentsCache[idx];
           if (!app) return;
           
-          const userNum = app.from.split("@")[0];
-          const formattedNum = `+55 (${userNum.slice(0,2)}) ${userNum.slice(2,7)}-${userNum.slice(7)}`;
+          const formattedNum = formatPhoneNumber(app.from);
           const title = app.pushname && app.pushname !== "Cliente" ? `${app.pushname} (${formattedNum})` : formattedNum;
           
           openDetailsModal(
@@ -763,6 +803,8 @@ function initConfigurationManager() {
   const inputMsgFinal = document.getElementById("input-msg-final");
   const inputEndereco = document.getElementById("input-endereco");
   const inputLinkMapa = document.getElementById("input-link-mapa");
+  const inputHorarioManha = document.getElementById("input-horario-manha");
+  const inputHorarioTarde = document.getElementById("input-horario-tarde");
   
   // Chips de Pagamento
   const paymentChipsContainer = document.getElementById("payment-chips-container");
@@ -794,6 +836,8 @@ function initConfigurationManager() {
       inputMsgFinal.value = currentConfigData.mensagemFinal || "";
       inputEndereco.value = currentConfigData.endereco || "";
       inputLinkMapa.value = currentConfigData.linkMapa || "";
+      if (inputHorarioManha) inputHorarioManha.value = currentConfigData.horarioManha || "08:00 às 12:00";
+      if (inputHorarioTarde) inputHorarioTarde.value = currentConfigData.horarioTarde || "13:00 às 17:00";
 
       // Salva em memória local para manusear antes do submit
       localPayments = [...(currentConfigData.formasPagamento || [])];
@@ -956,7 +1000,9 @@ function initConfigurationManager() {
       todosServicos: localGeneralServices,
       servicos: localServicesMap,
       endereco: inputEndereco.value.trim(),
-      linkMapa: inputLinkMapa.value.trim()
+      linkMapa: inputLinkMapa.value.trim(),
+      horarioManha: inputHorarioManha ? inputHorarioManha.value.trim() : "08:00 às 12:00",
+      horarioTarde: inputHorarioTarde ? inputHorarioTarde.value.trim() : "13:00 às 17:00"
     };
 
     try {
@@ -977,8 +1023,8 @@ function initConfigurationManager() {
   }
 
   // Monitorar alterações nos campos de texto para salvar quando perder o foco (change)
-  [inputNomeEmpresa, inputSaudacao, inputMsgFinal, inputEndereco, inputLinkMapa].forEach(input => {
-    input.addEventListener("change", autoSaveConfig);
+  [inputNomeEmpresa, inputSaudacao, inputMsgFinal, inputEndereco, inputLinkMapa, inputHorarioManha, inputHorarioTarde].forEach(input => {
+    if (input) input.addEventListener("change", autoSaveConfig);
   });
 
   // ---- SUBMIT DE REASSURANCE MANUAL ----
@@ -1214,6 +1260,10 @@ function initClientsMonitoring() {
       clientsCache = clients;
 
       if (badge) badge.textContent = clients.length;
+      const totalClientsEl = document.getElementById("metric-total-clients");
+      if (totalClientsEl) {
+        totalClientsEl.textContent = `${clients.length} Cliente(s)`;
+      }
       if (!tbody) return;
 
       if (clients.length === 0) {
@@ -1230,10 +1280,9 @@ function initClientsMonitoring() {
         const tr = document.createElement("tr");
 
         // Formatar número
-        const userNum = cli.phone.split("@")[0];
-        const formattedNum = `+55 (${userNum.slice(0,2)}) ${userNum.slice(2,7)}-${userNum.slice(7)}`;
+        const formattedNum = formatPhoneNumber(cli.phone);
 
-        const dateStr = cli.timestamp ? new Date(cli.timestamp).toLocaleDateString("pt-BR") : "N/A";
+        const dateStr = (cli.created_at || cli.timestamp) ? new Date(cli.created_at || cli.timestamp).toLocaleDateString("pt-BR") : "N/A";
         const totalVehicles = cli.veiculos ? cli.veiculos.length : 0;
 
         tr.innerHTML = `
@@ -1356,7 +1405,12 @@ function initCalendarMonitoring() {
   let currentYear = today.getFullYear();
 
   // Guarda qual data está selecionada atualmente no formato "YYYY-MM-DD"
-  const formatIsoDate = (d) => d.toISOString().split("T")[0];
+  const formatIsoDate = (d) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
   let selectedDateStr = formatIsoDate(today);
 
   // Controle de filtro de serviços do dia
@@ -1629,32 +1683,80 @@ function initCalendarMonitoring() {
 
   function renderAppointmentItem(app, isLegacy) {
     const card = document.createElement("div");
-    card.className = "day-appointment-item";
+    card.className = "completed-card";
 
+    const formattedNum = formatPhoneNumber(app.from);
+    
+    const dateStr = app.timestamp ? new Date(app.timestamp).toLocaleString("pt-BR") : "N/A";
+    const valor = app.valorFinal ? `R$ ${app.valorFinal},00` : "Orçamento Manual";
+    
     const turno = app.agendamentoTurno || "Geral";
     const isManha = turno.toLowerCase().includes("manhã") || turno.toLowerCase().includes("manha");
     
     const badgeClass = isManha ? "manha" : "tarde";
     const badgeText = isLegacy ? "Sem Data" : (isManha ? "Manhã" : "Tarde");
 
-    const userNum = app.from.split("@")[0];
-    const formattedNum = `+55 (${userNum.slice(0, 2)}) ${userNum.slice(2, 7)}-${userNum.slice(7)}`;
-    const clientName = app.pushname && app.pushname !== "Cliente" ? `${app.pushname} (${formattedNum})` : formattedNum;
-
-    // Placa e porte styling
-    const veiculoTexto = app.veiculo || "N/A";
-    const servicoTexto = app.servico || "N/A";
-    const valor = app.valorFinal ? `R$ ${app.valorFinal},00` : "Orçamento Manual";
+    const displayName = app.pushname && app.pushname !== "Cliente" ? app.pushname : "Cliente";
 
     card.innerHTML = `
-      <div class="app-time-row">
-        <span class="app-period-badge ${badgeClass}">${badgeText}</span>
-        <span style="font-weight: 700; color: var(--success); font-size: 0.85rem; font-family: var(--font-mono);">${valor}</span>
+      <div class="completed-card-header">
+        <div class="completed-client-info">
+          <span class="completed-client-name">${displayName}</span>
+          <span class="completed-client-phone">${formattedNum}</span>
+        </div>
+        <span class="completed-price">${valor}</span>
       </div>
-      <div class="app-vehicle-text">🚗 ${veiculoTexto}</div>
-      <div class="app-service-text">💎 Serviço: <strong>${servicoTexto}</strong></div>
-      <div class="app-client-text">👥 Cliente: ${clientName}</div>
+      
+      <div class="completed-card-body">
+        <div class="completed-info-row">
+          <span class="completed-info-label">💎 Serviço:</span>
+          <span class="completed-info-value" style="color: var(--primary);">${app.servico}</span>
+        </div>
+        <div class="completed-info-row">
+          <span class="completed-info-label">🚗 Veículo:</span>
+          <span class="completed-info-value"><span class="stage-badge veiculo" style="font-size: 0.7rem; padding: 2px 6px;">${app.veiculo}</span></span>
+        </div>
+        <div class="completed-info-row">
+          <span class="completed-info-label">🗓️ Período:</span>
+          <span class="completed-info-value">
+            <span class="app-period-badge ${badgeClass}" style="font-size: 0.68rem; margin-right: 4px; padding: 2px 6px;">${badgeText}</span>
+            <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 500;">${app.agendamentoDia}</span>
+          </span>
+        </div>
+        <div class="completed-info-row">
+          <span class="completed-info-label">💳 Pagamento:</span>
+          <span class="completed-info-value"><span class="stage-badge pagamento" style="font-size: 0.7rem; padding: 2px 6px;">${app.pagamento}</span></span>
+        </div>
+      </div>
+      
+      <div class="completed-card-footer">
+        <div class="completed-date-time">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          <span>Finalizado: ${dateStr}</span>
+        </div>
+        <button class="btn-primary view-calendar-details-btn" style="padding: 6px 12px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 4px;">
+          <span>+ Info</span>
+        </button>
+      </div>
     `;
+
+    const btnInfo = card.querySelector(".view-calendar-details-btn");
+    if (btnInfo) {
+      btnInfo.addEventListener("click", () => {
+        if (typeof window.openDetailsModal === "function") {
+          window.openDetailsModal(
+            displayName + ` (${formattedNum})`, 
+            formattedNum, 
+            "CONCLUÍDO", 
+            app.servico, 
+            app.veiculo, 
+            app.pagamento, 
+            app.respostas,
+            app.observacoes
+          );
+        }
+      });
+    }
 
     dayAppointmentsContainer.appendChild(card);
   }

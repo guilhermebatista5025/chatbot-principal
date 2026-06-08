@@ -6,4 +6,5 @@
 .wwebjs_cache_new/
 .node_modules/
 .wwebjs_auth_backup
+.env
 node_modules

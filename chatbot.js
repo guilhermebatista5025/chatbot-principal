@@ -8,6 +8,186 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
+// Carregar variáveis de ambiente (.env)
+require("dotenv").config();
+const { createClient } = require("@supabase/supabase-js");
+const ws = require("ws");
+
+// Inicializar cliente do Supabase
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey || supabaseUrl.includes("seu-projeto-id") || supabaseKey.includes("sua-chave-anon")) {
+  console.warn("⚠️ ALERTA: Credenciais do Supabase não configuradas no arquivo .env! A integração com o banco de dados não funcionará até que as credenciais corretas sejam inseridas.");
+}
+
+const supabase = createClient(supabaseUrl || "https://placeholder.supabase.co", supabaseKey || "placeholder", {
+  realtime: {
+    transport: ws
+  }
+});
+
+// =====================================
+// INTEGRAÇÃO SUPABASE - FUNÇÕES AUXILIARES
+// =====================================
+async function getCliente(phone) {
+  try {
+    const { data, error } = await supabase
+      .from("clientes")
+      .select("*")
+      .eq("phone", phone)
+      .maybeSingle();
+    if (error) {
+      console.error(`❌ Erro ao buscar cliente (${phone}):`, error.message);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error(`❌ Erro de conexão ao buscar cliente (${phone}):`, err.message);
+    return null;
+  }
+}
+
+async function getClienteByCpf(cpf) {
+  try {
+    if (!cpf) return null;
+    const { data, error } = await supabase
+      .from("clientes")
+      .select("*")
+      .eq("cpf", cpf)
+      .maybeSingle();
+    if (error) {
+      console.error(`❌ Erro ao buscar cliente por CPF (${cpf}):`, error.message);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error(`❌ Erro de conexão ao buscar cliente por CPF (${cpf}):`, err.message);
+    return null;
+  }
+}
+
+async function saveCliente(clienteData) {
+  try {
+    const { data, error } = await supabase
+      .from("clientes")
+      .upsert({
+        phone: clienteData.phone,
+        nome: clienteData.nome,
+        cpf: clienteData.cpf,
+        veiculos: clienteData.veiculos,
+        created_at: clienteData.timestamp || new Date().toISOString()
+      });
+    if (error) {
+      console.error(`❌ Erro ao salvar cliente no Supabase (${clienteData.phone}):`, error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`❌ Erro de conexão ao salvar cliente (${clienteData.phone}):`, err.message);
+    return false;
+  }
+}
+
+async function deleteCliente(phone) {
+  try {
+    const { error } = await supabase
+      .from("clientes")
+      .delete()
+      .eq("phone", phone);
+    if (error) {
+      console.error(`❌ Erro ao deletar cliente no Supabase (${phone}):`, error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(`❌ Erro de conexão ao deletar cliente (${phone}):`, err.message);
+    return false;
+  }
+}
+
+async function getTodosClientes() {
+  try {
+    const { data, error } = await supabase
+      .from("clientes")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("❌ Erro ao buscar todos os clientes no Supabase:", error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.error("❌ Erro de conexão ao buscar todos os clientes:", err.message);
+    return [];
+  }
+}
+
+async function saveAgendamento(agendamento) {
+  try {
+    const { data, error } = await supabase
+      .from("agendamentos")
+      .insert({
+        cliente_phone: agendamento.from,
+        pushname: agendamento.pushname,
+        servico: agendamento.servico,
+        veiculo: agendamento.veiculo,
+        placa: agendamento.placa,
+        porte: agendamento.porte,
+        sujeira: agendamento.sujeira,
+        agendamento_dia: agendamento.agendamentoDia,
+        agendamento_turno: agendamento.agendamentoTurno,
+        agendamento_data_valor: agendamento.agendamentoDataValor,
+        pagamento: agendamento.pagamento,
+        valor_final: agendamento.valorFinal,
+        observacoes: agendamento.observacoes || "",
+        respostas: agendamento.respostas || [],
+        timestamp: agendamento.timestamp || new Date().toISOString()
+      });
+    if (error) {
+      console.error("❌ Erro ao salvar agendamento no Supabase:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("❌ Erro de conexão ao salvar agendamento:", err.message);
+    return false;
+  }
+}
+
+async function getTodosAgendamentos() {
+  try {
+    const { data, error } = await supabase
+      .from("agendamentos")
+      .select("*")
+      .order("timestamp", { ascending: false });
+    if (error) {
+      console.error("❌ Erro ao buscar agendamentos no Supabase:", error.message);
+      return [];
+    }
+    return (data || []).map(row => ({
+      from: row.cliente_phone,
+      pushname: row.pushname,
+      servico: row.servico,
+      veiculo: row.veiculo,
+      placa: row.placa,
+      porte: row.porte,
+      sujeira: row.sujeira,
+      agendamentoDia: row.agendamento_dia,
+      agendamentoTurno: row.agendamento_turno,
+      agendamentoDataValor: row.agendamento_data_valor,
+      pagamento: row.pagamento,
+      valorFinal: row.valor_final,
+      observacoes: row.observacoes,
+      respostas: row.respostas,
+      timestamp: row.timestamp
+    }));
+  } catch (err) {
+    console.error("❌ Erro de conexão ao buscar agendamentos:", err.message);
+    return [];
+  }
+}
+
 // =====================================
 // CONFIGURAÇÃO DO EXPRESS
 // =====================================
@@ -54,56 +234,78 @@ app.get("/favicon.ico", (req, res) => {
 const CONFIG_PATH = path.join(__dirname, "config.json");
 let botConfig = {};
 
-const DB_PATH = path.join(__dirname, "db.json");
-let userDatabase = { clientes: {} };
-
-function loadDatabase() {
+async function loadDatabase() {
   try {
-    if (fs.existsSync(DB_PATH)) {
-      const raw = fs.readFileSync(DB_PATH, "utf8");
-      userDatabase = JSON.parse(raw);
-      console.log("⚙️ Banco de dados de clientes carregado. Total cadastrados:", Object.keys(userDatabase.clientes).length);
+    console.log("⚙️ Conectando ao Supabase e carregando cache inicial...");
+    const appointments = await getTodosAgendamentos();
+    completedAppointments.length = 0;
+    completedAppointments.push(...appointments.slice(0, 100).reverse());
+    console.log(`⚙️ Cache inicial carregado do Supabase. Agendamentos em cache: ${completedAppointments.length}`);
+  } catch (error) {
+    console.error("⚠️ Erro ao carregar cache do Supabase:", error.message);
+  }
+}
+
+async function loadConfig() {
+  try {
+    const { data, error } = await supabase
+      .from("configuracoes")
+      .select("*")
+      .eq("id", 1)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (data) {
+      botConfig = {
+        nomeEmpresa: data.nome_empresa,
+        saudacaoAdicional: data.saudacao_adicional,
+        mensagemFinal: data.mensagem_final,
+        formasPagamento: data.formas_pagamento || [],
+        todosServicos: data.todos_servicos || [],
+        servicos: data.servicos || {},
+        sujeiraAdicionais: data.sujeira_adicionais || {},
+        endereco: data.endereco || "",
+        linkMapa: data.link_mapa || "",
+        horarioManha: data.horario_manha || "08:00 às 12:00",
+        horarioTarde: data.horario_tarde || "13:00 às 17:00"
+      };
+      console.log("⚙️ Configurações dinâmicas carregadas do Supabase com sucesso.");
     } else {
-      saveDatabase();
+      console.warn("⚠️ Tabela configuracoes vazia no Supabase. Usando fallback local.");
+      loadConfigFallback();
     }
   } catch (error) {
-    console.error("⚠️ Erro ao carregar db.json, usando vazio:", error.message);
+    console.error("❌ Erro ao carregar configurações do Supabase:", error.message);
+    loadConfigFallback();
   }
 }
 
-function saveDatabase() {
-  try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(userDatabase, null, 2), "utf8");
-    return true;
-  } catch (error) {
-    console.error("❌ Erro ao salvar banco de dados:", error);
-    return false;
-  }
-}
-
-function loadConfig() {
+function loadConfigFallback() {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
       const raw = fs.readFileSync(CONFIG_PATH, "utf8");
       botConfig = JSON.parse(raw);
-      console.log("⚙️ Configurações dinâmicas carregadas com sucesso.");
+      console.log("⚙️ Configurações dinâmicas de fallback carregadas do arquivo local.");
     } else {
       throw new Error("Arquivo config.json não encontrado");
     }
   } catch (error) {
-    console.error("⚠️ Erro ao carregar config.json, usando padrão:", error.message);
+    console.error("⚠️ Erro ao carregar config.json local, usando padrão em memória:", error.message);
     botConfig = {
       nomeEmpresa: "AUTO SPORT ESTÉTICA AUTOMOTIVA",
       saudacaoAdicional: "Escolha uma opção abaixo para continuar:",
       mensagemFinal: "Nossa equipe entrará em contato para confirmar o horário.",
-      "formasPagamento": [
+      formasPagamento: [
         "PIX (5% Desconto)",
         "Cartão de Crédito",
         "Cartão de Débito",
         "Dinheiro",
         "Pagar Presencial"
       ],
-      "todosServicos": [
+      todosServicos: [
         "Lavagem Técnica Detalhada",
         "Higienização e Detalhamento Interno",
         "Polimento Técnico & Lustro",
@@ -117,7 +319,7 @@ function loadConfig() {
           "precos": { "Pequeno": 80, "Médio": 100, "SUV": 130, "Caminhonete": 150 }
         }
       },
-      "sujeiraAdicionais": {
+      sujeiraAdicionais: {
         "Leve": 0,
         "Moderada": 30,
         "Pesada": 80
@@ -128,15 +330,51 @@ function loadConfig() {
   }
 }
 
-function saveConfig(newConfig) {
+async function saveConfig(newConfig) {
   try {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2), "utf8");
+    const { error } = await supabase
+      .from("configuracoes")
+      .upsert({
+        id: 1,
+        nome_empresa: newConfig.nomeEmpresa,
+        saudacao_adicional: newConfig.saudacaoAdicional,
+        mensagem_final: newConfig.mensagemFinal,
+        formas_pagamento: newConfig.formasPagamento,
+        todos_servicos: newConfig.todosServicos,
+        servicos: newConfig.servicos,
+        sujeira_adicionais: newConfig.sujeiraAdicionais,
+        endereco: newConfig.endereco,
+        link_mapa: newConfig.linkMapa,
+        horario_manha: newConfig.horarioManha || "08:00 às 12:00",
+        horario_tarde: newConfig.horarioTarde || "13:00 às 17:00",
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    // Backup local
+    try {
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2), "utf8");
+    } catch (e) {
+      console.warn("⚠️ Falha ao salvar backup local config.json:", e.message);
+    }
+
     botConfig = newConfig;
-    console.log("✅ Configurações salvas e atualizadas em memória.");
+    console.log("✅ Configurações salvas e atualizadas no Supabase.");
     return true;
   } catch (error) {
-    console.error("❌ Erro ao salvar configurações:", error);
-    return false;
+    console.error("❌ Erro ao salvar configurações no Supabase:", error.message);
+    // Tenta salvar localmente
+    try {
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2), "utf8");
+      botConfig = newConfig;
+      return true;
+    } catch (localErr) {
+      console.error("❌ Erro ao salvar backup local:", localErr.message);
+      return false;
+    }
   }
 }
 
@@ -272,7 +510,10 @@ function getNextWorkingDays(count = 6) {
     const dayOfWeek = current.getDay();
     if (dayOfWeek !== 0) { // Ignora Domingos
       const dateStr = current.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-      const fullDate = current.toISOString().split("T")[0]; // Formato YYYY-MM-DD
+      const yyyy = current.getFullYear();
+      const mm = String(current.getMonth() + 1).padStart(2, "0");
+      const dd = String(current.getDate()).padStart(2, "0");
+      const fullDate = `${yyyy}-${mm}-${dd}`;
       days.push({
         label: `${ptDays[dayOfWeek]} (${dateStr})`,
         value: fullDate
@@ -369,8 +610,8 @@ client.on("message", async (msg) => {
       else if (hora >= 12 && hora < 18) saudacao = "Boa tarde";
       else saudacao = "Boa noite";
 
-      // Verifica se o cliente já está cadastrado no CRM
-      const cliente = userDatabase.clientes[msg.from];
+      // Verifica se o cliente já está cadastrado no CRM do Supabase
+      const cliente = await getCliente(msg.from);
 
       if (cliente) {
         // CLIENTE CADASTRADO: Boas-vindas personalizadas!
@@ -435,9 +676,24 @@ client.on("message", async (msg) => {
       return;
     }
 
-    // Passo 2: Recebe CPF
+    // Passo 2: Recebe CPF (Valida se já está cadastrado no Supabase)
     if (userState[msg.from]?.etapa === "reg_cpf") {
       const cpf = msg.body.trim();
+      const cleanCpf = cpf.replace(/\D/g, "");
+
+      if (cleanCpf) {
+        const cpfExistente = await getClienteByCpf(cleanCpf);
+        if (cpfExistente && cpfExistente.phone !== msg.from) {
+          await typing();
+          await sendBotMessage(
+            msg.from,
+            `⚠️ *Atenção:* Já identificamos um cadastro ativo com este CPF para outro número de telefone (${cpfExistente.phone}).\n\n` +
+            `Por favor, informe outro CPF válido para continuar seu cadastro:`
+          );
+          return;
+        }
+      }
+
       userState[msg.from].cpf = cpf;
       userState[msg.from].etapa = "reg_quantos";
 
@@ -535,7 +791,7 @@ client.on("message", async (msg) => {
           `🚘 *Qual é o modelo e marca do carro?*`
         );
       } else {
-        // Cadastro completo! Salva no banco
+        // Cadastro completo! Salva no banco Supabase
         const clienteData = {
           phone: msg.from,
           nome: userState[msg.from].nome,
@@ -544,8 +800,7 @@ client.on("message", async (msg) => {
           veiculos: userState[msg.from].veiculosTemp
         };
 
-        userDatabase.clientes[msg.from] = clienteData;
-        saveDatabase();
+        await saveCliente(clienteData);
 
         // Limpa chaves temporárias
         delete userState[msg.from].veiculosTemp;
@@ -611,11 +866,13 @@ client.on("message", async (msg) => {
       }
       userState[msg.from].veiculoTemp.porte = porte;
 
-      // Adiciona o veículo novo na ficha do cliente no db.json
-      const cliente = userDatabase.clientes[msg.from];
-      if (!cliente.veiculos) cliente.veiculos = [];
-      cliente.veiculos.push(userState[msg.from].veiculoTemp);
-      saveDatabase();
+      // Adiciona o veículo novo na ficha do cliente no Supabase
+      const cliente = await getCliente(msg.from);
+      if (cliente) {
+        if (!cliente.veiculos) cliente.veiculos = [];
+        cliente.veiculos.push(userState[msg.from].veiculoTemp);
+        await saveCliente(cliente);
+      }
 
       // Salva na sessão do agendamento
       userState[msg.from].veiculo = userState[msg.from].veiculoTemp.modelo;
@@ -649,7 +906,7 @@ client.on("message", async (msg) => {
       
       // 1. SOLICITAR AGENDAMENTO (Escolha do Carro)
       if (texto === "1") {
-        const cliente = userDatabase.clientes[msg.from];
+        const cliente = await getCliente(msg.from);
         await typing();
 
         if (cliente && cliente.veiculos && cliente.veiculos.length > 0) {
@@ -731,7 +988,7 @@ client.on("message", async (msg) => {
     // SELECIONAR VEÍCULO CADASTRADO
     // =====================================
     if (userState[msg.from]?.etapa === "selecionar_veiculo") {
-      const cliente = userDatabase.clientes[msg.from];
+      const cliente = await getCliente(msg.from);
       const index = parseInt(texto) - 1;
 
       await typing();
@@ -867,8 +1124,8 @@ client.on("message", async (msg) => {
       await sendBotMessage(
         msg.from,
         `⏱️ *Qual período do dia você prefere?*\n\n` +
-        `1️⃣ Manhã (08h às 12h)\n` +
-        `2️⃣ Tarde (13h às 18h)`
+        `1️⃣ Manhã (${botConfig.horarioManha || "08:00 às 12:00"})\n` +
+        `2️⃣ Tarde (${botConfig.horarioTarde || "13:00 às 17:00"})`
       );
       return;
     }
@@ -878,8 +1135,8 @@ client.on("message", async (msg) => {
     // =====================================
     if (userState[msg.from]?.etapa === "agendamento_turno") {
       const turnos = {
-        "1": "Manhã (08h - 12h)",
-        "2": "Tarde (13h - 18h)"
+        "1": `Manhã (${botConfig.horarioManha || "08:00 às 12:00"})`,
+        "2": `Tarde (${botConfig.horarioTarde || "13:00 às 17:00"})`
       };
       const turno = turnos[texto];
       if (!turno) {
@@ -927,8 +1184,7 @@ client.on("message", async (msg) => {
         precoFinal = Math.round(precoFinal * 0.95);
       }
 
-      // Salva no histórico de agendamentos concluídos
-      completedAppointments.push({
+      const novoAgendamento = {
         from: dados.from,
         pushname: dados.pushname || "Cliente",
         servico: dados.servico,
@@ -943,11 +1199,16 @@ client.on("message", async (msg) => {
         valorFinal: precoFinal,
         timestamp: dados.timestamp,
         respostas: dados.respostas || []
-      });
+      };
 
+      // Salva no histórico de agendamentos concluídos (memória cache)
+      completedAppointments.push(novoAgendamento);
       if (completedAppointments.length > 100) {
         completedAppointments.shift();
       }
+
+      // Salva no banco de dados do Supabase
+      await saveAgendamento(novoAgendamento);
 
       await typing();
 
@@ -990,17 +1251,18 @@ app.get("/api/status", (req, res) => {
 });
 
 // Ler configurações salvas
-app.get("/api/config", (req, res) => {
+app.get("/api/config", async (req, res) => {
+  await loadConfig();
   res.json(botConfig);
 });
 
 // Salvar configurações
-app.post("/api/config", (req, res) => {
-  const success = saveConfig(req.body);
+app.post("/api/config", async (req, res) => {
+  const success = await saveConfig(req.body);
   if (success) {
     res.json({ success: true, message: "Configurações atualizadas com sucesso!" });
   } else {
-    res.status(500).json({ success: false, message: "Erro ao gravar configurações no disco." });
+    res.status(500).json({ success: false, message: "Erro ao gravar configurações no banco de dados." });
   }
 });
 
@@ -1010,30 +1272,35 @@ app.get("/api/sessions", (req, res) => {
 });
 
 // Lista todos os clientes cadastrados no CRM
-app.get("/api/clients", (req, res) => {
-  res.json(Object.values(userDatabase.clientes));
+app.get("/api/clients", async (req, res) => {
+  const clientes = await getTodosClientes();
+  res.json(clientes);
 });
 
 // Deletar um cliente do CRM
-app.post("/api/clients/delete", (req, res) => {
+app.post("/api/clients/delete", async (req, res) => {
   const { phone } = req.body;
-  if (phone && userDatabase.clientes[phone]) {
-    delete userDatabase.clientes[phone];
-    saveDatabase();
-    console.log(`🧹 Cliente removido do CRM pelo administrador: ${phone}`);
-    res.json({ success: true, message: "Cliente removido com sucesso de forma definitiva." });
+  if (phone) {
+    const success = await deleteCliente(phone);
+    if (success) {
+      console.log(`🧹 Cliente removido do CRM pelo administrador: ${phone}`);
+      res.json({ success: true, message: "Cliente removido com sucesso de forma definitiva." });
+    } else {
+      res.status(500).json({ success: false, message: "Erro ao remover cliente do Supabase." });
+    }
   } else {
-    res.status(404).json({ success: false, message: "Cliente não encontrado no CRM." });
+    res.status(400).json({ success: false, message: "Número de telefone não informado." });
   }
 });
 
 // Retorna o histórico de agendamentos concluídos
-app.get("/api/appointments", (req, res) => {
-  res.json(completedAppointments);
+app.get("/api/appointments", async (req, res) => {
+  const appointments = await getTodosAgendamentos();
+  res.json(appointments);
 });
 
 // Novo endpoint para receber agendamentos realizados via Website
-app.post("/api/appointments", (req, res) => {
+app.post("/api/appointments", async (req, res) => {
   const { 
     from, 
     pushname, 
@@ -1062,81 +1329,91 @@ app.post("/api/appointments", (req, res) => {
   }
   const formattedPhone = `${rawPhone}@c.us`;
 
-  // 1. Integração com CRM: Verifica/Salva Cliente em db.json
-  if (!userDatabase.clientes) {
-    userDatabase.clientes = {};
-  }
-
   const veiculoFormatado = {
     modelo: veiculo,
     placa: (placa || "N/A").toUpperCase(),
     porte: porte || "Médio"
   };
 
-  if (!userDatabase.clientes[formattedPhone]) {
-    // Cliente novo: Cria cadastro
-    userDatabase.clientes[formattedPhone] = {
-      phone: formattedPhone,
-      nome: pushname,
-      cpf: cpf || "N/A",
-      timestamp: new Date().toISOString(),
-      veiculos: [veiculoFormatado]
-    };
-    saveDatabase();
-    console.log(`👤 Novo cliente cadastrado no CRM via Website: ${pushname} (${formattedPhone})`);
-  } else {
-    // Cliente recorrente: Verifica se o veículo já está cadastrado
-    const cliente = userDatabase.clientes[formattedPhone];
-    const jaCadastrado = cliente.veiculos && cliente.veiculos.some(
-      v => v.placa.replace(/\D/g, "") === veiculoFormatado.placa.replace(/\D/g, "")
-    );
-    if (!jaCadastrado) {
-      if (!cliente.veiculos) cliente.veiculos = [];
-      cliente.veiculos.push(veiculoFormatado);
-      saveDatabase();
-      console.log(`🚗 Novo veículo [${veiculoFormatado.modelo}] vinculado ao cliente CRM: ${pushname}`);
-    }
-  }
-
-  // 2. Criação do Agendamento Confirmado no Painel
-  const novoAgendamento = {
-    from: formattedPhone,
-    pushname: pushname,
-    servico: servico,
-    veiculo: `${veiculo} [${(placa || "N/A").toUpperCase()}]`,
-    placa: (placa || "N/A").toUpperCase(),
-    porte: porte || "N/A",
-    sujeira: sujeira || "N/A",
-    agendamentoDia: agendamentoDia || "N/A",
-    agendamentoTurno: agendamentoTurno || "N/A",
-    agendamentoDataValor: agendamentoDataValor || "N/A",
-    pagamento: pagamento || "N/A",
-    valorFinal: valorFinal || 0,
-    observacoes: observacoes || "N/A",
-    timestamp: new Date().toISOString(),
-    respostas: [
-      { 
-        autor: "cliente", 
-        texto: `Agendamento Web realizado com sucesso! Serviços: ${servico}. Carro: ${veiculo} [${placa || "N/A"}]. Período: ${agendamentoDia} (${agendamentoTurno}). Obs: ${observacoes || "Nenhuma"}`, 
-        timestamp: new Date().toISOString() 
+  try {
+    // 1. Integração com CRM: Verifica/Salva Cliente no Supabase
+    let cliente = await getCliente(formattedPhone);
+    if (!cliente) {
+      // Cliente novo: Cria cadastro
+      cliente = {
+        phone: formattedPhone,
+        nome: pushname,
+        cpf: cpf || null,
+        timestamp: new Date().toISOString(),
+        veiculos: [veiculoFormatado]
+      };
+      await saveCliente(cliente);
+      console.log(`👤 Novo cliente cadastrado no CRM via Website: ${pushname} (${formattedPhone})`);
+    } else {
+      // Cliente recorrente: Verifica se o veículo já está cadastrado
+      const jaCadastrado = cliente.veiculos && cliente.veiculos.some(
+        v => v.placa.replace(/\D/g, "") === veiculoFormatado.placa.replace(/\D/g, "")
+      );
+      if (!jaCadastrado) {
+        if (!cliente.veiculos) cliente.veiculos = [];
+        cliente.veiculos.push(veiculoFormatado);
+        await saveCliente(cliente);
+        console.log(`🚗 Novo veículo [${veiculoFormatado.modelo}] vinculado ao cliente CRM: ${pushname}`);
       }
-    ]
-  };
+    }
 
-  completedAppointments.push(novoAgendamento);
-  if (completedAppointments.length > 100) {
-    completedAppointments.shift();
+    // 2. Criação do Agendamento Confirmado no Painel
+    const novoAgendamento = {
+      from: formattedPhone,
+      pushname: pushname,
+      servico: servico,
+      veiculo: `${veiculo} [${(placa || "N/A").toUpperCase()}]`,
+      placa: (placa || "N/A").toUpperCase(),
+      porte: porte || "N/A",
+      sujeira: sujeira || "N/A",
+      agendamentoDia: agendamentoDia || "N/A",
+      agendamentoTurno: agendamentoTurno || "N/A",
+      agendamentoDataValor: agendamentoDataValor || "N/A",
+      pagamento: pagamento || "N/A",
+      valorFinal: valorFinal || 0,
+      observacoes: observacoes || "N/A",
+      timestamp: new Date().toISOString(),
+      respostas: [
+        { 
+          autor: "cliente", 
+          texto: `Agendamento Web realizado com sucesso! Serviços: ${servico}. Carro: ${veiculo} [${placa || "N/A"}]. Período: ${agendamentoDia} (${agendamentoTurno}). Obs: ${observacoes || "Nenhuma"}`, 
+          timestamp: new Date().toISOString() 
+        }
+      ]
+    };
+
+    completedAppointments.push(novoAgendamento);
+    if (completedAppointments.length > 100) {
+      completedAppointments.shift();
+    }
+
+    // Salva no banco de dados do Supabase
+    await saveAgendamento(novoAgendamento);
+
+    console.log(`📅 Novo agendamento registrado via WEBSITE para ${pushname}: ${servico} (Valor: R$ ${valorFinal},00)`);
+    res.json({ success: true, message: "Agendamento registrado com sucesso!" });
+  } catch (error) {
+    console.error("❌ Erro ao registrar agendamento via Web:", error);
+    res.status(500).json({ success: false, message: "Erro interno no servidor ao registrar agendamento." });
   }
-
-  console.log(`📅 Novo agendamento registrado via WEBSITE para ${pushname}: ${servico} (Valor: R$ ${valorFinal},00)`);
-  res.json({ success: true, message: "Agendamento registrado com sucesso!" });
 });
 
 // Limpa o histórico de agendamentos concluídos
-app.post("/api/appointments/clear", (req, res) => {
-  completedAppointments.length = 0;
-  console.log("🧹 Histórico de agendamentos limpo pelo administrador.");
-  res.json({ success: true, message: "Histórico de agendamentos limpo." });
+app.post("/api/appointments/clear", async (req, res) => {
+  try {
+    const { error } = await supabase.from("agendamentos").delete().neq("id", "00000000-0000-0000-0000-000000000000"); // Deleta todos
+    completedAppointments.length = 0;
+    console.log("🧹 Histórico de agendamentos limpo pelo administrador.");
+    res.json({ success: true, message: "Histórico de agendamentos limpo." });
+  } catch (err) {
+    console.error("❌ Erro ao limpar agendamentos no Supabase:", err);
+    res.status(500).json({ success: false, message: "Erro ao limpar histórico no banco de dados." });
+  }
 });
 
 // Resetar sessão ativa de um usuário
